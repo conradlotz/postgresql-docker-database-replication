@@ -1,0 +1,39 @@
+version: '3'
+networks:
+  frontend:
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+services:
+  db-primary:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres12!@
+    ports:
+      - '5433:5432'  # Map external port 5433 to internal port 5432
+    volumes: 
+      - db-primary:/var/lib/postgresql/data
+    networks:
+            frontend:
+                ipv4_address: 172.20.0.8
+  db-secondary:
+    image: postgres:14.1-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres12!@
+    ports:
+      - '5434:5432'  # Map external port 5434 to internal port 5432
+    volumes: 
+      - db-secondary:/var/lib/postgresql/data
+    networks:
+            frontend:
+                ipv4_address: 172.20.0.9
+volumes:
+  db-primary:
+    driver: local
+  db-secondary:
+    driver: local
