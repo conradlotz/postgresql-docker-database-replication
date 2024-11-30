@@ -12,26 +12,35 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres12!@
+      - POSTGRES_DB=postgres
+      - POSTGRES_INITDB_ARGS=--data-checksums
+      - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
       - '5433:5432'  # Map external port 5433 to internal port 5432
     volumes: 
       - db-primary:/var/lib/postgresql/data
     networks:
-            frontend:
-                ipv4_address: 172.20.0.8
+      frontend:
+        ipv4_address: 172.20.0.8
+    command: "postgres -c wal_level=replica -c max_wal_senders=3 -c max_replication_slots=3"
   db-secondary:
     image: postgres:14.1-alpine
     restart: always
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres12!@
+      - POSTGRES_DB=postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
     ports:
       - '5434:5432'  # Map external port 5434 to internal port 5432
     volumes: 
       - db-secondary:/var/lib/postgresql/data
     networks:
-            frontend:
-                ipv4_address: 172.20.0.9
+      frontend:
+        ipv4_address: 172.20.0.9
+    depends_on:
+      - db-primary
+    command: "bash -c 'until pg_isready -h db-primary -p 5432; do sleep 1; done && pg_basebackup -h db-primary -D /var/lib/postgresql/data -U postgres -vP --wal-method=stream'"
 volumes:
   db-primary:
     driver: local
