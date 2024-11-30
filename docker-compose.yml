@@ -1,48 +1,45 @@
-version: '3'
-networks:
-  frontend:
-    ipam:
-      config:
-        - subnet: 172.20.0.0/24
-          gateway: 172.20.0.1
+version: '3.8'
+
 services:
-  db-primary:
-    image: postgres:14.1-alpine
-    restart: always
+  primary:
+    image: postgres:latest
+    container_name: primary
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres12!@
-      - POSTGRES_DB=postgres
-      - POSTGRES_INITDB_ARGS=--data-checksums
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+    volumes:
+      - primary_data:/var/lib/postgresql/data
+      - ./primary/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
     ports:
-      - '5433:5432'  # Map external port 5433 to internal port 5432
-    volumes: 
-      - db-primary:/var/lib/postgresql/data
+      - "5433:5432"
     networks:
-      frontend:
-        ipv4_address: 172.20.0.8
-    command: "postgres -c wal_level=replica -c max_wal_senders=3 -c max_replication_slots=3"
-  db-secondary:
-    image: postgres:14.1-alpine
-    restart: always
+      - pg-network
+
+  replica:
+    image: postgres:latest
+    container_name: replica
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres12!@
-      - POSTGRES_DB=postgres
-      - POSTGRES_HOST_AUTH_METHOD=trust
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: mydb
+      REPLICATE_FROM: primary
+    volumes:
+      - replica_data:/var/lib/postgresql/data
+      - ./replica/postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
     ports:
-      - '5434:5432'  # Map external port 5434 to internal port 5432
-    volumes: 
-      - db-secondary:/var/lib/postgresql/data
-    networks:
-      frontend:
-        ipv4_address: 172.20.0.9
+      - "5434:5432"
     depends_on:
-      - db-primary
-    command: "bash -c 'until pg_isready -h db-primary -p 5432; do sleep 1; done && pg_basebackup -h db-primary -D /var/lib/postgresql/data -U postgres -vP --wal-method=stream'"
+      - primary
+    networks:
+      - pg-network
+
+networks:
+  pg-network:
+    driver: bridge
+
 volumes:
-  db-primary:
-    driver: local
-  db-secondary:
-    driver: local
+  primary_data:
+  replica_data:

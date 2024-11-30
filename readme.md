@@ -1,3 +1,14 @@
+docker-compose up -d
+
+docker exec -it primary psql -U postgres -c "CREATE ROLE replic_user WITH REPLICATION PASSWORD 'replic_password' LOGIN;"
+
+
+
+
+
+
+
+
 SELECT version();
 
 docker exec -it 2-database-replication-db-1 psql -U postgres
@@ -73,6 +84,9 @@ hot_standby = on
 
 // 4. Save the file and copy it back to the container:
 docker cp ./postgresql.conf 2-database-replication-db-primary-1:/var/lib/postgresql/data/postgresql.conf
+
+docker cp ./replica/postgresql.conf replica:/var/lib/postgresql/data/postgresql.conf
+
 
 // 5. Reload the PostgreSQL configuration:
 docker exec -it 2-database-replication-db-primary-1 psql -U postgres -c "SELECT pg_reload_conf();"
