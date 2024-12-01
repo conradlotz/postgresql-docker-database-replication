@@ -2,12 +2,66 @@ docker-compose up -d
 
 docker exec -it primary psql -U postgres -c "CREATE ROLE replic_user WITH REPLICATION PASSWORD 'replic_password' LOGIN;"
 
+docker exec -it primary psql -U postgres -c "CREATE ROLE replic_user WITH REPLICATION PASSWORD 'replic_password' LOGIN;"
+
+docker exec -it replica bash -c "touch /var/lib/postgresql/data/standby.signal"
 
 
+docker restart replica
+
+primary/postgresql.conf
+# ...existing code...
+listen_addresses = '*'
+wal_level = replica
+max_wal_senders = 3
+wal_keep_segments = 64
+# ...existing code...
+
+replica/postgresql.conf
+# ...existing code...
+host replication replic_user 0.0.0.0/0 md5
+# ...existing code...
 
 
+replica/postgresql.conf
+# ...existing code...
+hot_standby = on
+primary_conninfo = 'host=primary port=5432 user=replic_user password=replic_password'
+# ...existing code...
+
+replica/pg_hba.conf
+# ...existing code...
+host replication replic_user 0.0.0.0/0 md5
+# ...existing code...
 
 
+SELECT COUNT(*)
+FROM information_schema.tables
+WHERE table_schema = 'public';
+
+SELECT *
+FROM pg_stat_replication;
+
+docker exec -it primary psql -U postgres -d postgres
+
+CREATE TABLE towns (
+    code VARCHAR(10) PRIMARY KEY,
+    article TEXT,
+    name TEXT,
+    department VARCHAR(4),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+INSERT INTO towns (code, article, name, department, created_at)
+SELECT LEFT(md5(i::text), 10), md5(random()::text), md5(random()::text), LEFT(md5(random()::text), 4), CURRENT_TIMESTAMP
+FROM generate_series(1, 1000000) s(i)
+ON CONFLICT (code) DO NOTHING;
+
+ls $PGDATA/pg_wal/
+If WAL files are not being generated, double-check the wal_level setting.
+
+psql -h <primary_host> -U <replica_user> -d postgres
 
 SELECT version();
 

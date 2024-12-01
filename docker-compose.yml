@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: postgres
     volumes:
       - primary_data:/var/lib/postgresql/data
       - ./primary/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./primary/pg_hba.conf:/etc/postgresql/pg_hba.conf
     ports:
-      - "5433:5432"
+      - "5433:5432" # Exposing container's 5432 on host's 5433
     networks:
       - pg-network
 
@@ -23,14 +23,14 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
+      POSTGRES_DB: postgres
       REPLICATE_FROM: primary
     volumes:
       - replica_data:/var/lib/postgresql/data
       - ./replica/postgresql.conf:/etc/postgresql/postgresql.conf
       - ./replica/pg_hba.conf:/etc/postgresql/pg_hba.conf
     ports:
-      - "5434:5432"
+      - "5434:5432" # Exposing container's 5432 on host's 5434
     depends_on:
       - primary
     networks:
@@ -38,7 +38,7 @@ services:
 
 networks:
   pg-network:
-    driver: bridge
+    driver: bridge # Define a bridge network
 
 volumes:
   primary_data:
