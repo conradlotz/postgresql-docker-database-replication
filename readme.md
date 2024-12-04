@@ -19,7 +19,7 @@ wal_keep_segments = 64
 
 replica/postgresql.conf
 # ...existing code...
-host replication replic_user 0.0.0.0/0 md5
+wal_keep_segments
 # ...existing code...
 
 
@@ -167,8 +167,8 @@ Slave node
 
 // To create a base backup of the master database
 // Replace <data_directory>, <master_ip>, <port>, and <rep_user> with appropriate values
-pg_basebackup -D /var/lib/postgresql/data -h <primary_db_ip> -p <port> -X stream -c fast -U replication_user -W
-
+pg_basebackup -D /var/lib/postgresql/data -h primary -p 5433 -X stream -c fast -U replica_user -W
+replic_password
 // If pg_basebackup is missing, install it using the following command:
 // For Debian/Ubuntu:
 sudo apt-get install postgresql-client
@@ -192,6 +192,9 @@ SELECT rolname, rolsuper, rolreplication
 FROM pg_roles
 WHERE rolname = 'replication_user';
 
+
+// Ensure the replica_user role exists
+docker exec -it primary psql -U postgres -c "CREATE ROLE replica_user WITH REPLICATION LOGIN PASSWORD 'replic_password';"
 
 pg_ctl restart -D /var/lib/postgresql/data 
 
@@ -222,3 +225,38 @@ a6c25573bdc7b361f304394eeac0a190f44b2409c8cdd4d9f9709b87bf4c5f25
 docker exec a6c25573bdc7b361f304394eeac0a190f44b2409c8cdd4d9f9709b87bf4c5f25 mkdir -p /var/lib/postgresql/data/pg_archives 
 
 / $ pg_basebackup -h 172.23.240.1 -U replicator -p 5433 -D $PGDATA -P -Xs -R
+
+// Ensure the primary server is running and accepting connections on port 5433
+docker exec -it primary psql -U postgres -c "SHOW listen_addresses;"
+docker exec -it primary psql -U postgres -c "SHOW port;"
+
+// If the primary server is not running on port 5433, update the postgresql.conf file:
+docker cp primary:/var/lib/postgresql/data/postgresql.conf ./postgresql.conf
+// Modify the port setting to 5433
+// ...existing code...
+port = 5433
+// ...existing code...
+docker cp ./postgresql.conf primary:/var/lib/postgresql/data/postgresql.conf
+docker exec -it primary psql -U postgres -c "SELECT pg_reload_conf();"
+
+// Retry the base backup command
+pg_basebackup -D /var/lib/postgresql/data -h primary -p 5432 -X stream -c fast -U replica_user -W
+
+// To modify the pg_hba.conf file to allow replication connections
+// 1. Locate the container ID or name of your PostgreSQL container:
+docker ps
+
+// 2. Copy the pg_hba.conf file from the container to your host:
+docker cp primary:/var/lib/postgresql/data/pg_hba.conf ./pg_hba.conf
+
+// 3. Open the pg_hba.conf file in a text editor and add the following line:
+host    replication     replica_user    172.18.0.2/32    trust
+
+// 4. Save the file and copy it back to the container:
+docker cp ./pg_hba.conf primary:/var/lib/postgresql/data/pg_hba.conf
+
+// 5. Reload the PostgreSQL configuration:
+docker exec -it primary psql -U postgres -c "SELECT pg_reload_conf();"
+
+// Retry the base backup command
+pg_basebackup -D /var/lib/postgresql/data -h primary -p 5432 -X stream -c fast -U replica_user -W
